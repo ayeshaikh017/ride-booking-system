@@ -42,7 +42,7 @@
 - [Event Publishing](#-event-publishing)
 - [Event Consumers](#-event-consumers)
 - [Testing 100 Rides](#-testing-100-rides)
-- [Sample Outputs](#-sample-outputs)
+- [Terminal Output](#-terminal-output)
 - [Design Notes](#-design-notes)
 - [Known Limitations](#-known-limitations)
 - [Future Production Improvements](#-future-production-improvements)
@@ -429,14 +429,6 @@ Stuck rides:               0
 PASS: All 100 rides completed successfully.
 ```
 
-**Screenshot**
-
-<!-- 📸 Drag and drop your screenshot here (GitHub will insert the image link automatically) -->
-
-&nbsp;
-
-&nbsp;
-
 ### Validation
 
 | Check | Expected | Actual |
@@ -450,7 +442,7 @@ PASS: All 100 rides completed successfully.
 
 ---
 
-## 🖥 Sample Outputs
+## 🖥 Terminal Output
 
 ### Worker (example output)
 
@@ -469,12 +461,6 @@ Ride 6ac37ebc8bb8ee1b26fc202d assigned to Driver 1
 ```
 
 The second ride was accepted by the first driver, so no rejections occurred.
-
-<!-- 📸 Drag and drop your screenshot here (GitHub will insert the image link automatically) -->
-
-&nbsp;
-
-&nbsp;
 
 ### Billing consumer
 
@@ -497,12 +483,6 @@ Billing: charging rider for ride 6ac37ebc8bb8ee1b26fc204f
 Billing: charging rider for ride 6ac37ebc8bb8ee1b26fc202e
 ```
 
-<!-- 📸 Drag and drop your screenshot here (GitHub will insert the image link automatically) -->
-
-&nbsp;
-
-&nbsp;
-
 Notice that rides `...2047` and `...204b` are **not** charged. They ended in `NO_DRIVER_FOUND`, as the Ops output below confirms.
 
 ### Ops consumer
@@ -523,12 +503,6 @@ Ops: ride 6ac37ebc8bb8ee1b26fc204f is now in status ASSIGNED
 Ops: ride 6ac37ebc8bb8ee1b26fc202e is now in status ASSIGNED
 Ops: ride 6ac37ebc8bb8ee1b26fc202f is now in status NO_DRIVER_FOUND
 ```
-
-<!-- 📸 Drag and drop your screenshot here (GitHub will insert the image link automatically) -->
-
-&nbsp;
-
-&nbsp;
 
 ### Fan-out proof
 
