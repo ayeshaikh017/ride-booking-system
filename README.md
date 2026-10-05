@@ -208,7 +208,7 @@ PORT=5000
 MONGO_URI=your_mongodb_connection_string
 ```
 
-> ⚠️ Do not commit `.env` to GitHub.
+> 
 
 ---
 
