@@ -3,17 +3,20 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "worker": "node src/workers/rideWorker.js",
+    "billing": "node src/consumers/billing.js",
+    "ops": "node src/consumers/ops.js",
+    "test:100": "node scripts/create100Rides.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "bullmq": "^6.3.11",
     "dotenv": "^18.0.5",
     "express": "^5.2.1",
-    "ioredis": "^6.0.0",
     "mongoose": "^9.10.4"
   },
   "devDependencies": {
