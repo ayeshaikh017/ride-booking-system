@@ -171,6 +171,13 @@ ride-booking-system/
 ├── scripts/
 │   └── create100Rides.js
 │
+├── docs/
+│   └── screenshots/
+│       ├── test-100.png
+│       ├── worker.png
+│       ├── billing.png
+│       └── ops.png
+│
 ├── .env
 ├── .gitignore
 ├── package.json
@@ -427,6 +434,10 @@ Stuck rides:               0
 PASS: All 100 rides completed successfully.
 ```
 
+**Screenshot**
+
+![100-ride test output](docs/screenshots/test-100.png)
+
 ### Validation
 
 | Check | Expected | Actual |
@@ -460,6 +471,8 @@ Ride 6ac37ebc8bb8ee1b26fc202d assigned to Driver 1
 
 The second ride was accepted by the first driver, so no rejections occurred.
 
+![Worker output](docs/screenshots/worker.png)
+
 ### Billing consumer
 
 Billing prints a line only for rides that reached `ASSIGNED`:
@@ -481,6 +494,8 @@ Billing: charging rider for ride 6ac37ebc8bb8ee1b26fc204f
 Billing: charging rider for ride 6ac37ebc8bb8ee1b26fc202e
 ```
 
+![Billing consumer output](docs/screenshots/billing.png)
+
 Notice that rides `...2047` and `...204b` are **not** charged. They ended in `NO_DRIVER_FOUND`, as the Ops output below confirms.
 
 ### Ops consumer
@@ -501,6 +516,8 @@ Ops: ride 6ac37ebc8bb8ee1b26fc204f is now in status ASSIGNED
 Ops: ride 6ac37ebc8bb8ee1b26fc202e is now in status ASSIGNED
 Ops: ride 6ac37ebc8bb8ee1b26fc202f is now in status NO_DRIVER_FOUND
 ```
+
+![Ops consumer output](docs/screenshots/ops.png)
 
 ### Fan-out proof
 
