@@ -35,6 +35,16 @@ const rideSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+
+    assignmentHistory: {
+      type: [String],
+      default: [],
+    },
+
+    processing: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

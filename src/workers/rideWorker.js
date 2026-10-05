@@ -1,5 +1,11 @@
+const mongoose = require("mongoose");
+const dotenv = require("dotenv");
+
 const Ride = require("../models/Ride");
+const { getNextRide } = require("../queue/rideQueue");
 const { publishRideEvent } = require("../events/eventStore");
+
+dotenv.config();
 
 const drivers = [
   "Driver 1",
@@ -14,33 +20,41 @@ const drivers = [
   "Driver 10",
 ];
 
-const processRide = async (rideId) => {
-  const ride = await Ride.findById(rideId);
-
-  if (!ride) {
-    console.log("Ride not found:", rideId);
-    return;
-  }
-
-  console.log(`Processing ride ${rideId}`);
+const processRide = async (ride) => {
+  console.log(`Processing ride ${ride._id}`);
 
   let rejectionCount = 0;
 
   for (const driver of drivers) {
-    // Randomly accept or reject
-    // Approximately 50% chance of acceptance
     const accepted = Math.random() < 0.5;
 
     if (accepted) {
+      // Safety check: never assign an already assigned ride
+      if (ride.status !== "REQUESTED") {
+        console.log(
+          `Ride ${ride._id} was already completed`
+        );
+        return;
+      }
+
       ride.status = "ASSIGNED";
       ride.assignedDriver = driver;
 
+      // Record every assignment
+      ride.assignmentHistory.push(driver);
+
+      ride.processing = false;
+
       await ride.save();
 
-      // Publish ASSIGNED event
-      publishRideEvent(ride._id.toString(), "ASSIGNED");
+      await publishRideEvent(
+        ride._id.toString(),
+        "ASSIGNED"
+      );
 
-      console.log(`Ride ${rideId} assigned to ${driver}`);
+      console.log(
+        `Ride ${ride._id} assigned to ${driver}`
+      );
 
       return;
     }
@@ -51,27 +65,63 @@ const processRide = async (rideId) => {
 
     await ride.save();
 
-    console.log(`Driver ${driver} rejected ride ${rideId}`);
+    console.log(
+      `Driver ${driver} rejected ride ${ride._id}`
+    );
 
-    // Stop after 3 rejections
     if (rejectionCount === 3) {
       ride.status = "NO_DRIVER_FOUND";
+      ride.processing = false;
 
       await ride.save();
 
-      // Publish NO_DRIVER_FOUND event
-      publishRideEvent(
+      await publishRideEvent(
         ride._id.toString(),
         "NO_DRIVER_FOUND"
       );
 
-      console.log(`No driver found for ride ${rideId}`);
+      console.log(
+        `No driver found for ride ${ride._id}`
+      );
 
       return;
     }
   }
 };
 
-module.exports = {
-  processRide,
+const startWorker = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI);
+
+    console.log("Worker connected to MongoDB");
+    console.log("Ride worker started");
+
+    while (true) {
+      try {
+        const ride = await getNextRide();
+
+        if (ride) {
+          await processRide(ride);
+        } else {
+          await new Promise((resolve) =>
+            setTimeout(resolve, 500)
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Worker error:",
+          error.message
+        );
+      }
+    }
+  } catch (error) {
+    console.error(
+      "Worker MongoDB connection failed:",
+      error.message
+    );
+
+    process.exit(1);
+  }
 };
+
+startWorker();

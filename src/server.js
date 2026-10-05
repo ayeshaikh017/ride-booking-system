@@ -1,6 +1,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
+
 const rideRoutes = require("./routes/rideRoutes");
 
 dotenv.config();
@@ -8,6 +9,7 @@ dotenv.config();
 const app = express();
 
 app.use(express.json());
+
 app.use("/rides", rideRoutes);
 
 app.get("/", (req, res) => {
@@ -26,5 +28,8 @@ mongoose
     });
   })
   .catch((error) => {
-    console.error("MongoDB connection failed:", error.message);
+    console.error(
+      "MongoDB connection failed:",
+      error.message
+    );
   });

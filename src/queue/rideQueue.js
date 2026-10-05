@@ -1,30 +1,26 @@
-const rideQueue = [];
-let workerRunning = false;
+const Ride = require("../models/Ride");
 
-const addRideToQueue = (rideId) => {
-  rideQueue.push(rideId);
-  processQueue();
+const addRideToQueue = async (rideId) => {
+  console.log(`Ride ${rideId} added to queue`);
 };
 
-const processQueue = async () => {
-  if (workerRunning) return;
-
-  workerRunning = true;
-
-  while (rideQueue.length > 0) {
-    const rideId = rideQueue.shift();
-
-    try {
-      const { processRide } = require("../workers/rideWorker");
-      await processRide(rideId);
-    } catch (error) {
-      console.error("Queue processing error:", error.message);
+const getNextRide = async () => {
+  return Ride.findOneAndUpdate(
+    {
+      status: "REQUESTED",
+    },
+    {
+      $set: {
+        processing: true,
+      },
+    },
+    {
+      new: true,
     }
-  }
-
-  workerRunning = false;
+  );
 };
 
 module.exports = {
   addRideToQueue,
+  getNextRide,
 };

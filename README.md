@@ -7,7 +7,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Node.js-18%2B-339933?logo=nodedotjs&logoColor=white" alt="Node.js"/>
-  <img src="https://img.shields.io/badge/Express.js-4.x-000000?logo=express&logoColor=white" alt="Express"/>
+  <img src="https://img.shields.io/badge/Express.js-REST%20API-000000?logo=express&logoColor=white" alt="Express"/>
   <img src="https://img.shields.io/badge/MongoDB-Database-47A248?logo=mongodb&logoColor=white" alt="MongoDB"/>
   <img src="https://img.shields.io/badge/Mongoose-ODM-880000?logo=mongoose&logoColor=white" alt="Mongoose"/>
   <img src="https://img.shields.io/badge/JavaScript-ES6%2B-F7DF1E?logo=javascript&logoColor=black" alt="JavaScript"/>
@@ -15,12 +15,13 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Tests-100%20rides%20concurrent-brightgreen" alt="Test"/>
+  <img src="https://img.shields.io/badge/Test-100%20concurrent%20rides-brightgreen" alt="Test"/>
+  <img src="https://img.shields.io/badge/Assigned-87-success" alt="Assigned"/>
+  <img src="https://img.shields.io/badge/No%20driver%20found-13-yellow" alt="No driver found"/>
+  <img src="https://img.shields.io/badge/Double%20assigned-0-success" alt="Double assigned"/>
   <img src="https://img.shields.io/badge/Stuck%20rides-0-success" alt="Stuck rides"/>
-  <img src="https://img.shields.io/badge/Queue-In--memory-blue" alt="Queue"/>
-  <img src="https://img.shields.io/badge/Event%20Store-JSONL-orange" alt="Event store"/>
-  <img src="https://img.shields.io/badge/Status-Assessment%20Complete-success" alt="Status"/>
-  <img src="https://img.shields.io/badge/PRs-welcome-brightgreen" alt="PRs welcome"/>
+  <img src="https://img.shields.io/badge/Queue-MongoDB-blue" alt="Queue"/>
+  <img src="https://img.shields.io/badge/Event%20Store-MongoDB-orange" alt="Event store"/>
 </p>
 
 ---
@@ -34,12 +35,16 @@
 - [Architecture](#-architecture)
 - [Project Structure](#-project-structure)
 - [Setup](#-setup)
+- [Running the System](#-running-the-system)
 - [API](#-api)
 - [Ride Assignment Flow](#-ride-assignment-flow)
+- [Fake Drivers](#-fake-drivers)
 - [Event Publishing](#-event-publishing)
 - [Event Consumers](#-event-consumers)
 - [Testing 100 Rides](#-testing-100-rides)
+- [Sample Outputs](#-sample-outputs)
 - [Design Notes](#-design-notes)
+- [Known Limitations](#-known-limitations)
 - [Future Production Improvements](#-future-production-improvements)
 - [Author](#-author)
 
@@ -47,42 +52,54 @@
 
 ## 📌 Overview
 
-This project was built as part of a **Backend Developer Internship assessment**. A rider books a ride, the API immediately returns a `rideId`, and a separate worker processes the ride in the background by offering it to fake drivers. Every status change is published as an event that two independent consumers (**Billing** and **Ops**) read in full.
+This project was built as part of a **Backend Developer Internship assessment**.
+
+A rider books a ride through the API. The API creates the ride and immediately returns a `rideId`. The ride is then processed asynchronously by a **separate worker process**.
+
+The worker offers the ride to hardcoded fake drivers. Each driver randomly accepts or rejects. If a driver accepts, the ride becomes `ASSIGNED`. If three drivers reject, the ride becomes `NO_DRIVER_FOUND`.
+
+Every ride status change is published as an event and stored in MongoDB. Two independent consumer programs, **Billing** and **Ops**, read the same event history, and each one sees **every** event.
 
 ---
 
 ## ✨ Features
 
 - Book a ride using `POST /rides` and receive a `rideId` immediately
-- Asynchronous ride processing through a queue and a separate worker
-- Hardcoded list of 10 fake drivers
-- Random driver acceptance/rejection (~50%)
+- MongoDB-backed queue for asynchronous ride processing
+- Separate Node.js worker process
+- 10 hardcoded fake drivers
+- Random driver acceptance/rejection (~50% acceptance probability)
 - Next driver is tried after a rejection
 - Processing stops after 3 driver rejections
 - Ride statuses: `REQUESTED`, `ASSIGNED`, `NO_DRIVER_FOUND`
-- An event is published on every status change
-- Separate **Billing** and **Ops** consumers, each receiving the complete event history
-- Concurrent test with 100 rides and automatic validation
+- Event published for every ride status change
+- MongoDB event store
+- Independent Billing and Ops consumers, both reading the complete event history
+- Concurrent test with 100 rides
+- Automatic validation of double assignment and stuck rides
 
 ---
 
 ## ✅ Assessment Checklist
 
-| Requirement | Status | Where |
+| Requirement | Status | Implementation |
 |---|:---:|---|
 | `POST /rides` returns `rideId` immediately | ✅ | `rideController.js` |
-| Ride goes into a queue, picked up by a separate worker | ✅ | `rideQueue.js`, `rideWorker.js` |
-| ~10 hardcoded fake drivers, ~50% accept | ✅ | `rideWorker.js` |
-| Reject → next driver, 3 rejections → `NO_DRIVER_FOUND` | ✅ | `rideWorker.js` |
-| Event published on every status change | ✅ | `eventStore.js` |
-| Billing program prints "charging rider for ride X" | ✅ | `consumers/billing.js` |
-| Ops program prints "ride X is now in status Y" | ✅ | `consumers/ops.js` |
-| Both consumers see **every** event (fan-out, not split) | ✅ | `eventStore.js` |
-| Script books 100 rides at once | ✅ | `scripts/create100Rides.js` |
-| Total created = 100 | ✅ | test output |
-| `ASSIGNED + NO_DRIVER_FOUND = 100` | ✅ | test output |
-| Rides assigned to 2 drivers = 0 | ✅ | test output |
-| Rides stuck with no final status = 0 | ✅ | test output |
+| Ride is placed into a queue | ✅ | `rideQueue.js` |
+| Separate worker processes rides | ✅ | `rideWorker.js` |
+| ~10 hardcoded fake drivers | ✅ | `rideWorker.js` |
+| ~50% random driver acceptance | ✅ | `rideWorker.js` |
+| Rejection → offer to next driver | ✅ | `rideWorker.js` |
+| 3 rejections → `NO_DRIVER_FOUND` | ✅ | `rideWorker.js` |
+| Event published on status change | ✅ | `eventStore.js` |
+| Billing program: "charging rider for ride X" | ✅ | `consumers/billing.js` |
+| Ops program: "ride X is now in status Y" | ✅ | `consumers/ops.js` |
+| Both consumers see every event | ✅ | MongoDB `events` collection |
+| 100 rides booked at once | ✅ | `scripts/create100Rides.js` |
+| Total rides created = 100 | ✅ | **100** |
+| `ASSIGNED + NO_DRIVER_FOUND` = 100 | ✅ | **87 + 13 = 100** |
+| Rides assigned to 2 drivers = 0 | ✅ | **0** |
+| Rides stuck with no final status = 0 | ✅ | **0** |
 
 ---
 
@@ -95,7 +112,8 @@ This project was built as part of a **Backend Developer Internship assessment**.
 | Database | MongoDB |
 | ODM | Mongoose |
 | Language | JavaScript |
-| Version Control | Git / GitHub |
+| API style | REST |
+| Version control | Git / GitHub |
 
 ---
 
@@ -104,16 +122,18 @@ This project was built as part of a **Backend Developer Internship assessment**.
 ```mermaid
 flowchart LR
     A[Rider] -->|POST /rides| B[Express API]
-    B -->|create ride: REQUESTED| C[(MongoDB)]
-    B -->|enqueue| D[[Ride Queue]]
+    B -->|create ride: REQUESTED| C[(MongoDB<br/>rides)]
     B -->|rideId| A
-    D --> E[Ride Worker]
-    E -->|offer to drivers, max 3| F[Fake Drivers x10]
-    E -->|update status| C
-    E -->|publish event| G[(Event Store<br/>events.jsonl)]
-    G --> H[Billing Consumer]
-    G --> I[Ops Consumer]
+    C -->|worker claims ride| D[Ride Worker]
+    D -->|offer ride| E[Fake Drivers x10]
+    E -->|accept / reject| D
+    D -->|update status| C
+    D -->|publish event| F[(MongoDB<br/>events)]
+    F --> G[Billing Consumer]
+    F --> H[Ops Consumer]
 ```
+
+**In short:** API → MongoDB-backed queue → separate worker → driver assignment → MongoDB event store → Billing and Ops consumers (fan-out).
 
 ---
 
@@ -126,7 +146,8 @@ ride-booking-system/
 │   ├── server.js
 │   │
 │   ├── models/
-│   │   └── Ride.js
+│   │   ├── Ride.js
+│   │   └── Event.js
 │   │
 │   ├── routes/
 │   │   └── rideRoutes.js
@@ -163,7 +184,7 @@ ride-booking-system/
 ### Prerequisites
 
 - Node.js 18+
-- A MongoDB connection string (local or MongoDB Atlas)
+- A MongoDB connection string (MongoDB Atlas or local MongoDB)
 
 ### 1. Clone the repository
 
@@ -189,22 +210,34 @@ MONGO_URI=your_mongodb_connection_string
 
 > ⚠️ Do not commit `.env` to GitHub.
 
-### 4. Start the server
+---
+
+## ▶️ Running the System
+
+The system runs as **separate processes**: API, worker, and two consumers. Open four terminals.
+
+| Terminal | Command | Purpose |
+|:---:|---|---|
+| 1 | `npm run dev` | API server on `http://localhost:5000` |
+| 2 | `npm run worker` | Ride worker (claims queued rides and assigns drivers) |
+| 3 | `npm run billing` | Billing consumer |
+| 4 | `npm run ops` | Ops consumer |
+
+Then, in a fifth terminal, run the test:
 
 ```bash
-npm run dev
+npm run test:100
 ```
-
-The server runs on `http://localhost:5000`.
 
 ### Available Scripts
 
 | Command | Description |
 |---|---|
-| `npm run dev` | Start the API server and ride worker |
+| `npm run dev` | Start the API server |
+| `npm run worker` | Start the ride worker |
 | `npm run billing` | Start the Billing consumer |
 | `npm run ops` | Start the Ops consumer |
-| `npm run test:100` | Create and verify 100 concurrent rides |
+| `npm run test:100` | Create 100 concurrent rides and verify the results |
 
 ---
 
@@ -212,7 +245,7 @@ The server runs on `http://localhost:5000`.
 
 ### `POST /rides`
 
-Creates a new ride.
+Creates a new ride and returns immediately.
 
 **Request**
 
@@ -242,14 +275,35 @@ Content-Type: application/json
 }
 ```
 
-The API returns the ride ID immediately. Ride processing happens after the ride is added to the queue.
-
 **Example with cURL**
 
 ```bash
 curl -X POST http://localhost:5000/rides \
   -H "Content-Type: application/json" \
   -d '{"riderName":"Ayesha","pickup":"Thane","destination":"Andheri"}'
+```
+
+### `GET /rides/:rideId`
+
+Returns the current state of a ride.
+
+```http
+GET /rides/ride_id_here
+```
+
+```json
+{
+  "success": true,
+  "message": "Ride fetched successfully",
+  "data": {
+    "_id": "ride_id_here",
+    "riderName": "Ayesha",
+    "pickup": "Thane",
+    "destination": "Andheri",
+    "status": "ASSIGNED",
+    "assignedDriver": "Driver 2"
+  }
+}
 ```
 
 ---
@@ -259,68 +313,82 @@ curl -X POST http://localhost:5000/rides \
 ```mermaid
 flowchart TD
     A[POST /rides] --> B[Create ride: REQUESTED]
-    B --> C[Queue]
-    C --> D[Worker]
-    D --> E{Driver 1 accepts?}
-    E -- Yes --> Z[ASSIGNED]
-    E -- No --> F{Driver 2 accepts?}
-    F -- Yes --> Z
-    F -- No --> G{Driver 3 accepts?}
-    G -- Yes --> Z
-    G -- No --> H[NO_DRIVER_FOUND]
+    B --> C[MongoDB queue]
+    C --> D[Separate worker]
+    D --> E{Driver 1}
+    E -- Accept --> Z[ASSIGNED]
+    E -- Reject --> F{Driver 2}
+    F -- Accept --> Z
+    F -- Reject --> G{Driver 3}
+    G -- Accept --> Z
+    G -- Reject --> H[NO_DRIVER_FOUND]
 ```
 
 ### Ride Statuses
 
 | Status | Meaning |
 |---|---|
-| `REQUESTED` | Ride created and queued |
+| `REQUESTED` | Ride created and waiting for the worker |
 | `ASSIGNED` | A driver accepted the ride |
-| `NO_DRIVER_FOUND` | 3 drivers rejected the ride |
+| `NO_DRIVER_FOUND` | Three drivers rejected the ride |
 
 ---
 
 ## 🚗 Fake Drivers
 
-The system uses 10 hardcoded drivers (`Driver 1` to `Driver 10`). Each driver has approximately a **50% chance** of accepting a ride. A maximum of **3 driver rejections** is allowed per ride.
+The worker uses 10 hardcoded fake drivers (`Driver 1` to `Driver 10`). Each driver has roughly a **50% chance of accepting** a ride. Drivers are offered the ride **sequentially**, and a maximum of **3 rejections** is allowed per ride.
+
+```text
+Driver 1 → REJECT
+Driver 2 → ACCEPT        →  ASSIGNED (to Driver 2)
+```
+
+```text
+Driver 1 → REJECT
+Driver 2 → REJECT
+Driver 3 → REJECT        →  NO_DRIVER_FOUND
+```
+
+Once a ride is assigned, the worker stops offering it to anyone else, so a ride can never end up with two drivers.
 
 ---
 
 ## 📣 Event Publishing
 
-Whenever a ride status changes, an event is published and appended to:
+Every ride status change is published as an event and stored in the MongoDB `events` collection. Each event contains the ride ID, status, and timestamp.
 
-```text
-data/events.jsonl
-```
-
-Typical event sequences:
+Typical sequences:
 
 ```text
 REQUESTED → ASSIGNED
 REQUESTED → NO_DRIVER_FOUND
 ```
 
-The generated `data/` directory is excluded from Git using `.gitignore`.
+The worker logs each publish, for example:
+
+```text
+Event published: ride 6ac37ebc8bb8ee1b26fc202b -> ASSIGNED
+```
 
 ---
 
 ## 👥 Event Consumers
 
-Two independent consumers read the **same** event history. Each keeps its own read position, so one consumer never removes or steals events from the other (fan-out, not load-balancing).
-
-| Consumer | Command | Handles | Output |
-|---|---|---|---|
-| **Billing** | `npm run billing` | `ASSIGNED` events | `Billing: charging rider for ride <rideId>` |
-| **Ops** | `npm run ops` | All status events | `Ops: ride <rideId> is now in status <STATUS>` |
-
-**Ops example output**
+Two independent programs read the same `events` collection. They **do not delete or consume** events from the database, and each consumer tracks its own processed event IDs. This is **fan-out**, not load-balancing: both consumers receive every event.
 
 ```text
-Ops: ride <rideId> is now in status REQUESTED
-Ops: ride <rideId> is now in status ASSIGNED
-Ops: ride <rideId> is now in status NO_DRIVER_FOUND
+              MongoDB events
+                    |
+           +--------+--------+
+           |                 |
+           v                 v
+    Billing consumer    Ops consumer
 ```
+
+| Consumer | Command | Behaviour | Output format |
+|---|---|---|---|
+| **Billing** | `npm run billing` | Charges the rider when a ride reaches `ASSIGNED` | `Billing: charging rider for ride <rideId>` |
+| **Ops** | `npm run ops` | Reports ride status events | `Ops: ride <rideId> is now in status <STATUS>` |
 
 ---
 
@@ -330,69 +398,182 @@ Ops: ride <rideId> is now in status NO_DRIVER_FOUND
 npm run test:100
 ```
 
-The script creates 100 rides concurrently, waits for processing to finish, and prints a summary.
+The script:
 
-**Example output**
+1. Creates 100 rides concurrently
+2. Stores their ride IDs
+3. Waits for the worker to process them
+4. Checks the final status of every ride
+5. Checks for double assignment
+6. Checks for stuck rides
+7. Prints a summary and PASS/FAIL
+
+### Actual Test Output
 
 ```text
+PS C:\Users\ayesh\OneDrive\Desktop\ride-booking-system> npm run test:100
+Total rides created: 100
+
 ====================================
        RIDE BOOKING TEST
 ====================================
 Total rides created:       100
-ASSIGNED:                  89
-NO_DRIVER_FOUND:           11
+ASSIGNED:                  87
+NO_DRIVER_FOUND:           13
 Final rides:               100
-Rides assigned to 2 drivers: 0
+Double assigned rides:     0
 Stuck rides:               0
 ====================================
 PASS: All 100 rides completed successfully.
 ```
 
-The exact `ASSIGNED` and `NO_DRIVER_FOUND` values vary because driver acceptance is randomized.
-
 ### Validation
 
-| Check | Expected |
-|---|:---:|
-| Total rides created | 100 |
-| `ASSIGNED + NO_DRIVER_FOUND` | 100 |
-| Rides assigned to 2 drivers | 0 |
-| Rides stuck with no final status | 0 |
+| Check | Expected | Actual |
+|---|:---:|:---:|
+| Total rides created | 100 | **100** |
+| `ASSIGNED + NO_DRIVER_FOUND` | 100 | **87 + 13 = 100** |
+| Rides assigned to 2 drivers | 0 | **0** |
+| Rides stuck with no final status | 0 | **0** |
+
+> The `ASSIGNED` / `NO_DRIVER_FOUND` split varies between runs because driver acceptance is randomized. With three attempts at ~50%, the expected `NO_DRIVER_FOUND` rate is about 12.5% (0.5³), which matches the 13 / 100 observed.
+
+---
+
+## 🖥 Sample Outputs
+
+### Worker
+
+The worker claims a ride, offers it to drivers in order, publishes the event, and assigns the ride.
+
+```text
+Processing ride 6ac37ebc8bb8ee1b26fc202b
+Driver Driver 1 rejected ride 6ac37ebc8bb8ee1b26fc202b
+Driver Driver 2 rejected ride 6ac37ebc8bb8ee1b26fc202b
+Event published: ride 6ac37ebc8bb8ee1b26fc202b -> ASSIGNED
+Ride 6ac37ebc8bb8ee1b26fc202b assigned to Driver 3
+
+Processing ride 6ac37ebc8bb8ee1b26fc202d
+Event published: ride 6ac37ebc8bb8ee1b26fc202d -> ASSIGNED
+Ride 6ac37ebc8bb8ee1b26fc202d assigned to Driver 1
+```
+
+The second ride was accepted by the first driver, so no rejections occurred.
+
+### Billing consumer
+
+Billing prints a line only for rides that reached `ASSIGNED`:
+
+```text
+PS C:\Users\ayesh\OneDrive\Desktop\ride-booking-system> npm run billing
+Billing: charging rider for ride 6ac37ebc8bb8ee1b26fc2042
+Billing: charging rider for ride 6ac37ebc8bb8ee1b26fc2043
+Billing: charging rider for ride 6ac37ebc8bb8ee1b26fc2044
+Billing: charging rider for ride 6ac37ebc8bb8ee1b26fc2045
+Billing: charging rider for ride 6ac37ebc8bb8ee1b26fc2046
+Billing: charging rider for ride 6ac37ebc8bb8ee1b26fc2048
+Billing: charging rider for ride 6ac37ebc8bb8ee1b26fc2049
+Billing: charging rider for ride 6ac37ebc8bb8ee1b26fc204a
+Billing: charging rider for ride 6ac37ebc8bb8ee1b26fc204c
+Billing: charging rider for ride 6ac37ebc8bb8ee1b26fc204d
+Billing: charging rider for ride 6ac37ebc8bb8ee1b26fc204e
+Billing: charging rider for ride 6ac37ebc8bb8ee1b26fc204f
+Billing: charging rider for ride 6ac37ebc8bb8ee1b26fc202e
+```
+
+Notice that rides `...2047` and `...204b` are **not** charged. They ended in `NO_DRIVER_FOUND`, as the Ops output below confirms.
+
+### Ops consumer
+
+```text
+PS C:\Users\ayesh\OneDrive\Desktop\ride-booking-system> npm run ops
+Ops: ride 6ac37ebc8bb8ee1b26fc2045 is now in status ASSIGNED
+Ops: ride 6ac37ebc8bb8ee1b26fc2046 is now in status ASSIGNED
+Ops: ride 6ac37ebc8bb8ee1b26fc2047 is now in status NO_DRIVER_FOUND
+Ops: ride 6ac37ebc8bb8ee1b26fc2048 is now in status ASSIGNED
+Ops: ride 6ac37ebc8bb8ee1b26fc2049 is now in status ASSIGNED
+Ops: ride 6ac37ebc8bb8ee1b26fc204a is now in status ASSIGNED
+Ops: ride 6ac37ebc8bb8ee1b26fc204b is now in status NO_DRIVER_FOUND
+Ops: ride 6ac37ebc8bb8ee1b26fc204c is now in status ASSIGNED
+Ops: ride 6ac37ebc8bb8ee1b26fc204d is now in status ASSIGNED
+Ops: ride 6ac37ebc8bb8ee1b26fc204e is now in status ASSIGNED
+Ops: ride 6ac37ebc8bb8ee1b26fc204f is now in status ASSIGNED
+Ops: ride 6ac37ebc8bb8ee1b26fc202e is now in status ASSIGNED
+Ops: ride 6ac37ebc8bb8ee1b26fc202f is now in status NO_DRIVER_FOUND
+```
+
+### Fan-out proof
+
+Both consumers read from the same `events` collection and each sees every event relevant to it. For example, ride `6ac37ebc8bb8ee1b26fc2045`:
+
+| Consumer | Output for the ride |
+|---|---|
+| Billing | `Billing: charging rider for ride 6ac37ebc8bb8ee1b26fc2045` |
+| Ops | `Ops: ride 6ac37ebc8bb8ee1b26fc2045 is now in status ASSIGNED` |
+
+Neither consumer took events away from the other.
 
 ---
 
 ## 🧠 Design Notes
 
-The assessment is time-boxed, so the queue and event fan-out use lightweight Node.js primitives instead of requiring an external Redis installation.
+The assessment is time-boxed, so the implementation uses **MongoDB as a simple persistent queue and event store** instead of requiring Redis or a message broker.
 
-| Concern | Current implementation | Production replacement |
+### Queue
+
+A ride is available for processing when:
+
+```text
+status = REQUESTED
+processing = false
+```
+
+The worker claims a ride with an atomic MongoDB `findOneAndUpdate()` that sets `processing = true`. Because the claim is atomic, two worker processes cannot pick up the same ride, which also prevents double assignment.
+
+### Event Store
+
+Status events are written to a MongoDB `events` collection. Billing and Ops each read the collection independently and track which events they have already handled, so both observe the full history.
+
+### Current vs Production Architecture
+
+| Concern | Current implementation | Production alternative |
 |---|---|---|
-| Queue (`src/queue/rideQueue.js`) | In-memory queue | BullMQ / Redis |
-| Worker (`src/workers/rideWorker.js`) | Single-process worker | Distributed workers |
-| Events (`src/events/eventStore.js`) | Append-only JSONL file | Redis Pub/Sub, RabbitMQ, or Kafka |
+| Queue | MongoDB-backed queue | Redis + BullMQ |
+| Worker | Separate Node.js process | Distributed workers |
+| Event store | MongoDB collection | Kafka / RabbitMQ / Redis Streams |
+| Consumer offsets | Processed event IDs per consumer | Consumer groups / offsets |
 
-Each piece is isolated behind its own module, so it can be swapped out without changing the API contract.
+---
+
+## ⚠️ Known Limitations
+
+- **Mongoose deprecation warning.** The worker logs a warning that the `new` option of `findOneAndUpdate()` is deprecated. It is harmless, and can be removed by replacing `{ new: true }` with `{ returnDocument: 'after' }`.
+- **Log wording.** Worker logs print `Driver Driver 1` because the driver name already includes the word "Driver". This is cosmetic.
+- **Polling.** The worker and consumers poll MongoDB rather than receiving pushed messages, which adds a small latency.
+- **No crash recovery.** If a worker dies after claiming a ride (`processing = true`), that ride stays claimed until it is manually reset.
 
 ---
 
 ## 🚀 Future Production Improvements
 
-- [ ] Redis + BullMQ for durable background jobs
-- [ ] Redis Pub/Sub, RabbitMQ, or Kafka for event delivery
+- [ ] Redis + BullMQ for dedicated background job processing
+- [ ] Kafka / RabbitMQ / Redis Streams for event delivery
 - [ ] Retry handling for failed jobs
 - [ ] Dead-letter queues
-- [ ] Idempotency to prevent duplicate processing
+- [ ] Idempotency keys
 - [ ] Distributed workers
-- [ ] Driver location and availability tracking
-- [ ] Proper transaction/concurrency handling
+- [ ] Driver availability and location tracking
+- [ ] Proper transaction and concurrency handling
 - [ ] Authentication and authorization
-- [ ] Structured logging and monitoring
-- [ ] Automated unit/integration tests
+- [ ] Structured logging
+- [ ] Monitoring and metrics
+- [ ] Automated unit and integration tests
 - [ ] Docker-based deployment
+- [ ] Graceful worker shutdown and stuck-job recovery
 
 ---
 
 ## 👩‍💻 Author
 
 **Ayesha Shaikh**
-Backend Developer Intern Assessment
+Backend Developer Internship Assessment

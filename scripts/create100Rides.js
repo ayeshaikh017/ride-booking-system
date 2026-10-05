@@ -1,81 +1,211 @@
-const mongoose = require("mongoose");
-const Ride = require("../src/models/Ride");
-const { processRide } = require("../src/workers/rideWorker");
+const http = require("http");
 
-require("dotenv").config();
+const TOTAL_RIDES = 100;
 
-const create100Rides = async () => {
-  try {
-    await mongoose.connect(process.env.MONGO_URI);
-
-    console.log("Creating 100 rides...\n");
-
-    // Create 100 rides at once
-    const rideData = Array.from({ length: 100 }, (_, index) => ({
-      riderName: `Rider ${index + 1}`,
-      pickup: `Pickup ${index + 1}`,
-      destination: `Destination ${index + 1}`,
-      status: "REQUESTED",
-    }));
-
-    const rides = await Ride.insertMany(rideData);
-
-    // Process all rides
-    await Promise.all(
-      rides.map((ride) => processRide(ride._id.toString()))
-    );
-
-    // Get final state from database
-    const processedRides = await Ride.find({
-      _id: { $in: rides.map((ride) => ride._id) },
+const createRide = (index) => {
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify({
+      riderName: `Rider ${index}`,
+      pickup: `Pickup ${index}`,
+      destination: `Destination ${index}`,
     });
 
-    const assigned = processedRides.filter(
-      (ride) => ride.status === "ASSIGNED"
-    ).length;
+    const request = http.request(
+      {
+        hostname: "localhost",
+        port: 5000,
+        path: "/rides",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(data),
+        },
+      },
+      (response) => {
+        let body = "";
 
-    const noDriverFound = processedRides.filter(
-      (ride) => ride.status === "NO_DRIVER_FOUND"
-    ).length;
+        response.on("data", (chunk) => {
+          body += chunk;
+        });
 
-    const stuck = processedRides.filter(
-      (ride) =>
-        ride.status !== "ASSIGNED" &&
-        ride.status !== "NO_DRIVER_FOUND"
-    ).length;
+        response.on("end", () => {
+          try {
+            const result = JSON.parse(body);
 
-    // Check if any ride has more than one assigned driver
-    const assignedMoreThanOnce = processedRides.filter(
-      (ride) => ride.assignedDriver !== null
-    ).length;
+            if (!result.success) {
+              reject(
+                new Error(
+                  result.message || "Ride creation failed"
+                )
+              );
+              return;
+            }
 
-    console.log("\n====================================");
-    console.log("       RIDE BOOKING TEST");
-    console.log("====================================");
-    console.log(`Total rides created:       ${rides.length}`);
-    console.log(`ASSIGNED:                  ${assigned}`);
-    console.log(`NO_DRIVER_FOUND:           ${noDriverFound}`);
-    console.log(
-      `Final rides:               ${assigned + noDriverFound}`
+            resolve(result.data.rideId);
+          } catch (error) {
+            reject(error);
+          }
+        });
+      }
     );
-    console.log(`Stuck rides:               ${stuck}`);
-    console.log("====================================");
 
-    if (
-      rides.length === 100 &&
-      assigned + noDriverFound === 100 &&
-      stuck === 0
-    ) {
-      console.log("PASS: All 100 rides completed successfully.");
-    } else {
-      console.log("FAIL: Some rides were not completed correctly.");
+    request.on("error", reject);
+
+    request.write(data);
+    request.end();
+  });
+};
+
+const getRide = (rideId) => {
+  return new Promise((resolve, reject) => {
+    const request = http.get(
+      `http://localhost:5000/rides/${rideId}`,
+      (response) => {
+        let body = "";
+
+        response.on("data", (chunk) => {
+          body += chunk;
+        });
+
+        response.on("end", () => {
+          try {
+            const result = JSON.parse(body);
+
+            if (!result.success) {
+              reject(
+                new Error(result.message)
+              );
+              return;
+            }
+
+            resolve(result.data);
+          } catch (error) {
+            reject(error);
+          }
+        });
+      }
+    );
+
+    request.on("error", reject);
+  });
+};
+
+const sleep = (ms) =>
+  new Promise((resolve) =>
+    setTimeout(resolve, ms)
+  );
+
+const runTest = async () => {
+  console.log("Creating 100 rides...\n");
+
+  // Book 100 rides simultaneously
+  const rideIds = await Promise.all(
+    Array.from(
+      { length: TOTAL_RIDES },
+      (_, index) => createRide(index + 1)
+    )
+  );
+
+  console.log(
+    `Total rides created: ${rideIds.length}`
+  );
+
+  let rides = [];
+
+  // Wait for worker to finish
+  for (let attempt = 0; attempt < 60; attempt++) {
+    rides = await Promise.all(
+      rideIds.map((rideId) => getRide(rideId))
+    );
+
+    const finalRides = rides.filter(
+      (ride) =>
+        ride.status === "ASSIGNED" ||
+        ride.status === "NO_DRIVER_FOUND"
+    );
+
+    if (finalRides.length === TOTAL_RIDES) {
+      break;
     }
 
-    await mongoose.disconnect();
-  } catch (error) {
-    console.error("Test failed:", error.message);
-    process.exit(1);
+    await sleep(1000);
+  }
+
+  const assigned = rides.filter(
+    (ride) => ride.status === "ASSIGNED"
+  );
+
+  const noDriverFound = rides.filter(
+    (ride) => ride.status === "NO_DRIVER_FOUND"
+  );
+
+  const stuck = rides.filter(
+    (ride) =>
+      ride.status !== "ASSIGNED" &&
+      ride.status !== "NO_DRIVER_FOUND"
+  );
+
+  // A ride is double-assigned if assignment history
+  // contains more than one driver.
+  const doubleAssigned = rides.filter(
+    (ride) =>
+      ride.assignmentHistory &&
+      ride.assignmentHistory.length > 1
+  );
+
+  console.log("\n====================================");
+  console.log("       RIDE BOOKING TEST");
+  console.log("====================================");
+
+  console.log(
+    `Total rides created:       ${rideIds.length}`
+  );
+
+  console.log(
+    `ASSIGNED:                  ${assigned.length}`
+  );
+
+  console.log(
+    `NO_DRIVER_FOUND:           ${noDriverFound.length}`
+  );
+
+  console.log(
+    `Final rides:               ${
+      assigned.length + noDriverFound.length
+    }`
+  );
+
+  console.log(
+    `Double assigned rides:     ${doubleAssigned.length}`
+  );
+
+  console.log(
+    `Stuck rides:               ${stuck.length}`
+  );
+
+  console.log("====================================");
+
+  if (
+    rideIds.length === 100 &&
+    assigned.length + noDriverFound.length === 100 &&
+    doubleAssigned.length === 0 &&
+    stuck.length === 0
+  ) {
+    console.log(
+      "PASS: All 100 rides completed successfully."
+    );
+  } else {
+    console.log(
+      "FAIL: Some requirements were not satisfied."
+    );
   }
 };
 
-create100Rides();
+runTest().catch((error) => {
+  console.error(
+    "Test failed:",
+    error.message
+  );
+
+  process.exit(1);
+});

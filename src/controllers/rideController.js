@@ -4,16 +4,20 @@ const { publishRideEvent } = require("../events/eventStore");
 
 const createRide = async (req, res) => {
   try {
-    const { riderName, pickup, destination } = req.body;
+    const {
+      riderName,
+      pickup,
+      destination,
+    } = req.body;
 
     if (!riderName || !pickup || !destination) {
       return res.status(400).json({
         success: false,
-        message: "riderName, pickup and destination are required",
+        message:
+          "riderName, pickup and destination are required",
       });
     }
 
-    // Create ride in MongoDB
     const ride = await Ride.create({
       riderName,
       pickup,
@@ -22,12 +26,17 @@ const createRide = async (req, res) => {
     });
 
     // Publish REQUESTED event
-    publishRideEvent(ride._id.toString(), "REQUESTED");
+    await publishRideEvent(
+      ride._id.toString(),
+      "REQUESTED"
+    );
 
-    // Add ride to background queue
-    addRideToQueue(ride._id.toString());
+    // Add to queue
+    await addRideToQueue(
+      ride._id.toString()
+    );
 
-    // Return immediately
+    // Do NOT wait for driver assignment
     return res.status(201).json({
       success: true,
       message: "Ride booked successfully",
@@ -37,7 +46,10 @@ const createRide = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Create ride error:", error.message);
+    console.error(
+      "Create ride error:",
+      error.message
+    );
 
     return res.status(500).json({
       success: false,
@@ -45,7 +57,31 @@ const createRide = async (req, res) => {
     });
   }
 };
+const getRide = async (req, res) => {
+  try {
+    const ride = await Ride.findById(req.params.rideId);
+
+    if (!ride) {
+      return res.status(404).json({
+        success: false,
+        message: "Ride not found",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Ride fetched successfully",
+      data: ride,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch ride",
+    });
+  }
+};
 
 module.exports = {
   createRide,
+  getRide,
 };
