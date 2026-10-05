@@ -171,13 +171,6 @@ ride-booking-system/
 ├── scripts/
 │   └── create100Rides.js
 │
-├── docs/
-│   └── screenshots/
-│       ├── test-100.png
-│       ├── worker.png
-│       ├── billing.png
-│       └── ops.png
-│
 ├── .env
 ├── .gitignore
 ├── package.json
@@ -419,6 +412,8 @@ The script:
 
 ```text
 PS C:\Users\ayesh\OneDrive\Desktop\ride-booking-system> npm run test:100
+Creating 100 rides...
+
 Total rides created: 100
 
 ====================================
@@ -436,7 +431,11 @@ PASS: All 100 rides completed successfully.
 
 **Screenshot**
 
-![100-ride test output](docs/screenshots/test-100.png)
+<!-- 📸 Drag and drop your screenshot here (GitHub will insert the image link automatically) -->
+
+&nbsp;
+
+&nbsp;
 
 ### Validation
 
@@ -453,14 +452,14 @@ PASS: All 100 rides completed successfully.
 
 ## 🖥 Sample Outputs
 
-### Worker
+### Worker (example output)
 
-The worker claims a ride, offers it to drivers in order, publishes the event, and assigns the ride.
+The worker claims a ride, offers it to drivers in order, publishes the event, and assigns the ride. The log below is illustrative of the worker's output format.
 
 ```text
 Processing ride 6ac37ebc8bb8ee1b26fc202b
-Driver Driver 1 rejected ride 6ac37ebc8bb8ee1b26fc202b
-Driver Driver 2 rejected ride 6ac37ebc8bb8ee1b26fc202b
+Driver 1 rejected ride 6ac37ebc8bb8ee1b26fc202b
+Driver 2 rejected ride 6ac37ebc8bb8ee1b26fc202b
 Event published: ride 6ac37ebc8bb8ee1b26fc202b -> ASSIGNED
 Ride 6ac37ebc8bb8ee1b26fc202b assigned to Driver 3
 
@@ -471,7 +470,11 @@ Ride 6ac37ebc8bb8ee1b26fc202d assigned to Driver 1
 
 The second ride was accepted by the first driver, so no rejections occurred.
 
-![Worker output](docs/screenshots/worker.png)
+<!-- 📸 Drag and drop your screenshot here (GitHub will insert the image link automatically) -->
+
+&nbsp;
+
+&nbsp;
 
 ### Billing consumer
 
@@ -494,7 +497,11 @@ Billing: charging rider for ride 6ac37ebc8bb8ee1b26fc204f
 Billing: charging rider for ride 6ac37ebc8bb8ee1b26fc202e
 ```
 
-![Billing consumer output](docs/screenshots/billing.png)
+<!-- 📸 Drag and drop your screenshot here (GitHub will insert the image link automatically) -->
+
+&nbsp;
+
+&nbsp;
 
 Notice that rides `...2047` and `...204b` are **not** charged. They ended in `NO_DRIVER_FOUND`, as the Ops output below confirms.
 
@@ -517,7 +524,11 @@ Ops: ride 6ac37ebc8bb8ee1b26fc202e is now in status ASSIGNED
 Ops: ride 6ac37ebc8bb8ee1b26fc202f is now in status NO_DRIVER_FOUND
 ```
 
-![Ops consumer output](docs/screenshots/ops.png)
+<!-- 📸 Drag and drop your screenshot here (GitHub will insert the image link automatically) -->
+
+&nbsp;
+
+&nbsp;
 
 ### Fan-out proof
 
@@ -545,7 +556,7 @@ status = REQUESTED
 processing = false
 ```
 
-The worker claims a ride with an atomic MongoDB `findOneAndUpdate()` that sets `processing = true`. Because the claim is atomic, two worker processes cannot pick up the same ride, which also prevents double assignment.
+The worker claims a ride with an atomic MongoDB `findOneAndUpdate()` that sets `processing = true`. Because the claim is atomic, two worker processes cannot claim the same queued ride at the same time. The ride also records its assignment history, and the test checks that no ride has more than one assignment.
 
 ### Event Store
 
@@ -564,8 +575,6 @@ Status events are written to a MongoDB `events` collection. Billing and Ops each
 
 ## ⚠️ Known Limitations
 
-- **Mongoose deprecation warning.** The worker logs a warning that the `new` option of `findOneAndUpdate()` is deprecated. It is harmless, and can be removed by replacing `{ new: true }` with `{ returnDocument: 'after' }`.
-- **Log wording.** Worker logs print `Driver Driver 1` because the driver name already includes the word "Driver". This is cosmetic.
 - **Polling.** The worker and consumers poll MongoDB rather than receiving pushed messages, which adds a small latency.
 - **No crash recovery.** If a worker dies after claiming a ride (`processing = true`), that ride stays claimed until it is manually reset.
 
