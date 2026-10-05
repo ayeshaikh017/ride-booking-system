@@ -444,7 +444,7 @@ PASS: All 100 rides completed successfully.
 
 ## 🖥 Terminal Output
 
-### Worker (example output)
+### Worker
 
 The worker claims a ride, offers it to drivers in order, publishes the event, and assigns the ride. The log below is illustrative of the worker's output format.
 
