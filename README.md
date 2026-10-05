@@ -61,7 +61,27 @@ The worker offers the ride to hardcoded fake drivers. Each driver randomly accep
 Every ride status change is published as an event and stored in MongoDB. Two independent consumer programs, **Billing** and **Ops**, read the same event history, and each one sees **every** event.
 
 ---
+## 🌐 Live Demo
 
+**Base URL:** https://ride-booking-system-x0w3.onrender.com
+
+> Hosted on Render's free tier, so the first request may take 30–60 seconds while the service wakes up.
+
+**Book a ride**
+
+```bash
+curl -X POST https://ride-booking-system-x0w3.onrender.com/rides \
+  -H "Content-Type: application/json" \
+  -d '{"riderName":"Ayesha","pickup":"Thane","destination":"Andheri"}'
+```
+
+**Check the ride status** (use the `rideId` from the response above)
+
+```bash
+curl https://ride-booking-system-x0w3.onrender.com/rides/<rideId>
+```
+
+---
 ## ✨ Features
 
 - Book a ride using `POST /rides` and receive a `rideId` immediately
